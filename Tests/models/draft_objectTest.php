@@ -19,7 +19,7 @@ class draft_objectTest extends PHPUnit_Framework_TestCase {
 	 */
 	protected function setUp() {
 		$this->object = new draft_object;
-		$DBH = new PDO('mysql:host=tabby;dbname=phpdraft_test', 'phpdraft', 'mypass');
+		//$DBH = $this->getMock('PDO');
 	}
 
 	/**
@@ -27,7 +27,7 @@ class draft_objectTest extends PHPUnit_Framework_TestCase {
 	 * This method is called after a test is executed.
 	 */
 	protected function tearDown() {
-		$DBH = null;
+		//$DBH = null;
 		$this->object = null;
 	}
 
@@ -59,11 +59,23 @@ class draft_objectTest extends PHPUnit_Framework_TestCase {
 	 * @todo Implement testGetDraftDuration().
 	 */
 	public function testGetDraftDuration() {
+		date_default_timezone_set('America/New_York');
+		
 		$this->object->draft_status = "complete";
 		$this->object->draft_start_time = "2011-08-20 18:52:30";
 		$this->object->draft_end_time = "2011-08-20 18:59:42";
 		
-		$this->assertTrue($this->object->getDraftDuration() == "7 minutes, 12 seconds");
+		$this->assertEquals("7 minutes, 12 seconds", $this->object->getDraftDuration(), "Minutes and seconds");
+		
+		$this->object->draft_start_time = "2011-08-19 18:51:32";
+		$this->object->draft_end_time = "2011-08-20 18:59:42";
+		
+		$this->assertEquals("1 days, 8 minutes, 10 seconds", $this->object->getDraftDuration(), "Days, minutes and seconds");
+		
+		$this->object->draft_start_time = "2011-07-18 18:51:32";
+		$this->object->draft_end_time = "2011-08-20 18:59:42";
+		
+		$this->assertEquals("4 weeks, 5 days, 8 minutes, 10 seconds", $this->object->getDraftDuration(), "Months, days, minutes and seconds");
 	}
 
 	/**
