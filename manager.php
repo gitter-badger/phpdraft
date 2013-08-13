@@ -7,8 +7,9 @@ DEFINE("ACTION", isset($_GET['action']) ? $_GET['action'] : "");
 
 //NOTE: This uses _REQUEST because we grab the ID from both POSTs and GETs
 DEFINE('MANAGER_ID', isset($_REQUEST['mid']) ? (int)$_REQUEST['mid'] : 0);
+$MANAGER_SERVICE = new manager_service();
 
-$MANAGER = new manager_object(MANAGER_ID);
+$MANAGER = $MANAGER_SERVICE->loadManager(MANAGER_ID);
 
 // <editor-fold defaultstate="collapsed" desc="Error-checking on basic input">
 if($MANAGER->manager_id == 0) {
@@ -25,17 +26,21 @@ switch(ACTION) {
 		// <editor-fold defaultstate="collapsed" desc="moveManager Logic">
 		$direction = isset($_POST['direction']) ? $_POST['direction'] : "";
 		
-		switch($direction) {
-			case 'up':
-				$success = $MANAGER->moveManagerUp();
-				break;
-			
-			case 'down':
-				$success = $MANAGER->moveManagerDown();
-				break;
-		}	
+		try {
+			switch($direction) {
+				case 'up':
+					$MANAGER_SERVICE->moveManagerUp($MANAGER);
+					break;
+
+				case 'down':
+					$MANAGER_SERVICE->moveManagerDown($MANAGER);
+					break;
+			}
+		}catch(Exception $e) {
+			echo "FAILURE";
+		}
 		
-		echo $success ? "SUCCESS" : "FAILURE";
+		echo "SUCCESS";
 		// </editor-fold>
 		break;
 	
@@ -55,7 +60,7 @@ switch(ACTION) {
 		$MANAGER->manager_name = $manager_name;
 		$MANAGER->manager_email = $manager_email;
 		
-		$object_errors = $MANAGER->getValidity();
+		$object_errors = $MANAGER_SERVICE->getValidity($MANAGER);
 		
 		if(count($object_errors) > 0) {
 			$ERRORS = $object_errors;
@@ -63,7 +68,9 @@ switch(ACTION) {
 			exit(1);
 		}
 		
-		if($MANAGER->saveManager() === false) {
+		try {
+			$MANAGER_SERVICE->saveManager($MANAGER);
+		}catch(Exception $e) {
 			$ERRORS[] = "The manager was unable to be updated, please try again.";
 			require_once('views/manager/edit_manager.php');
 			exit(1);
@@ -78,9 +85,15 @@ switch(ACTION) {
 	
 	case 'deleteManager':
 		// <editor-fold defaultstate="collapsed" desc="deleteManager Logic">
-		$success = $MANAGER->deleteManager();
+		try {
+			$MANAGER_SERVICE->deleteManager($MANAGER);
+		}catch(Exception $e) {
+			echo "FAILURE";
+			exit(1);
+		}
 		
-		echo $success ? "SUCCESS" : "FAILURE";
+		echo "SUCCESS";
+		exit(1);
 		// </editor-fold>
 		break;
 }

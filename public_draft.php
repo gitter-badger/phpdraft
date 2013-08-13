@@ -8,11 +8,23 @@ DEFINE("ACTION", isset($_REQUEST['action']) ? $_REQUEST['action'] : "");
 DEFINE('DRAFT_ID', isset($_REQUEST['did']) ? (int)$_REQUEST['did'] : 0);
 DEFINE("BOARD_RELOAD", 5);
 
-//Draft password may have pre-loaded this for us.
-if(!isset($DRAFT) || get_class($DRAFT) != "draft_object")
-	$DRAFT = new draft_object(DRAFT_ID);
+$DRAFT_SERVICE = new draft_service();
+$MANAGER_SERVICE = new manager_service();
+$PLAYER_SERVICE = new player_service();
 
-// <editor-fold defaultstate="collapsed" desc="Error checking on basic input">
+//Draft password may have pre-loaded this for us.
+if(!isset($DRAFT) || get_class($DRAFT) != "draft_object") {
+	try {
+		$DRAFT = $DRAFT_SERVICE->loadDraft(DRAFT_ID);
+	}catch(Exception $e) {
+		define("PAGE_HEADER", "Draft Not Found");
+		define("P_CLASS", "error");
+		define("PAGE_CONTENT", "We're sorry, but the draft could not be loaded: " . $e->getMessage());
+		require_once("views/shared/generic_result_view.php");
+		exit(1);
+	}
+}
+
 if($DRAFT === false || $DRAFT->draft_id == 0) {
 	define("PAGE_HEADER", "Draft Not Found");
 	define("P_CLASS", "error");
@@ -20,11 +32,10 @@ if($DRAFT === false || $DRAFT->draft_id == 0) {
 	require_once("views/shared/generic_result_view.php");
 	exit(1);
 }
-// </editor-fold>
 
 if(ACTION != 'isDraftReady' && $DRAFT->isUndrafted()) {
-	$LAST_TEN_PICKS = $DRAFT->getLastTenPicks();
-	$CURRENT_PICK = $DRAFT->getCurrentPick();
+	$LAST_TEN_PICKS = $PLAYER_SERVICE->getLastTenPicks($DRAFT->draft_id);
+	$CURRENT_PICK = $PLAYER_SERVICE->getCurrentPick($DRAFT);
 	require("views/public_draft/index.php");
 	exit(0);
 }
@@ -46,8 +57,8 @@ switch(ACTION) {
 	
 	case 'draftBoard':
 		// <editor-fold defaultstate="collapsed" desc="draftBoard Logic">
-		$MANAGERS = manager_object::getManagersByDraft(DRAFT_ID);
-		$ALL_PICKS = $DRAFT->getAllDraftPicks();
+		$MANAGERS = $MANAGER_SERVICE->getManagersByDraft(DRAFT_ID);
+		$ALL_PICKS = $DRAFT_SERVICE->getAllDraftPicks($DRAFT);
 		DEFINE("NUMBER_OF_MANAGERS", count($MANAGERS));
 		DEFINE("COL_WIDTH", 115);
 		DEFINE("TOTAL_WIDTH", 10 + COL_WIDTH * NUMBER_OF_MANAGERS);
@@ -69,8 +80,8 @@ switch(ACTION) {
 	case 'loadDraftBoard':
 		// <editor-fold defaultstate="collapsed" desc="loadDraftBoard Logic">
 		//Ajax
-		$MANAGERS = manager_object::getManagersByDraft(DRAFT_ID);
-		$ALL_PICKS = $DRAFT->getAllDraftPicks();
+		$MANAGERS = $MANAGER_SERVICE->getManagersByDraft(DRAFT_ID);
+		$ALL_PICKS = $DRAFT_SERVICE->getAllDraftPicks($DRAFT);
 		DEFINE("NUMBER_OF_MANAGERS", count($MANAGERS));
 		DEFINE("COL_WIDTH", 115);
 		DEFINE("TOTAL_WIDTH", 10 + COL_WIDTH * NUMBER_OF_MANAGERS);
@@ -81,9 +92,18 @@ switch(ACTION) {
 	
 	case 'picksPerManager':
 		// <editor-fold defaultstate="collapsed" desc="picksPerManager Logic">
-		$MANAGERS = manager_object::getManagersByDraft($DRAFT->draft_id);
-		$MANAGER = $MANAGERS[0];
-		$MANAGER_PICKS = player_object::getSelectedPlayersByManager($MANAGER->manager_id);
+		try {
+			$MANAGERS = $MANAGER_SERVICE->getManagersByDraft($DRAFT->draft_id);
+			$MANAGER = $MANAGERS[0];
+			$MANAGER_PICKS = $PLAYER_SERVICE->getSelectedPlayersByManager($MANAGER->manager_id);
+		}catch(Exception $e) {
+			define("PAGE_HEADER", "Draft Not Found");
+			define("P_CLASS", "error");
+			define("PAGE_CONTENT", "Unable to load information: " . $e->getMessage() . " Please try again.");
+			require_once("views/shared/generic_result_view.php");
+			exit(1);
+		}
+		
 		$NOW = php_draft_library::getNowRefreshTime();
 		require("views/public_draft/picks_per_manager.php");
 		// </editor-fold>
@@ -91,14 +111,15 @@ switch(ACTION) {
 	
 	case 'loadManagerPicks':
 		// <editor-fold defaultstate="collapsed" desc="loadManagerPicks Logic">
+		$MANAGER_SERVICE = new manager_service();
 		$manager_id = (int)$_REQUEST['mid'];
-		$MANAGER = new manager_object($manager_id);
+		$MANAGER = $MANAGER_SERVICE->loadManager($manager_id);
 		
 		if($manager_id == 0 || $MANAGER === false) {
 			exit(1);
 		}
 		
-		$MANAGER_PICKS = player_object::getSelectedPlayersByManager($manager_id);
+		$MANAGER_PICKS = $PLAYER_SERVICE->getSelectedPlayersByManager($manager_id);
 		$NOW = php_draft_library::getNowRefreshTime();
 		
 		if(empty($MANAGER_PICKS)) {
@@ -113,7 +134,7 @@ switch(ACTION) {
 	case 'picksPerRound':
 		// <editor-fold defaultstate="collapsed" desc="picksPerRound Logic">
 		$ROUND = 1;
-		$ROUND_PICKS = player_object::getSelectedPlayersByRound($DRAFT->draft_id, $ROUND);
+		$ROUND_PICKS = $PLAYER_SERVICE->getSelectedPlayersByRound($DRAFT->draft_id, $ROUND);
 		$NOW = php_draft_library::getNowRefreshTime();
 		require("views/public_draft/picks_per_round.php");
 		// </editor-fold>
@@ -126,7 +147,7 @@ switch(ACTION) {
 		if($ROUND == 0)
 			exit(1);
 		
-		$ROUND_PICKS = player_object::getSelectedPlayersByRound($DRAFT->draft_id, $ROUND);
+		$ROUND_PICKS = $PLAYER_SERVICE->getSelectedPlayersByRound($DRAFT->draft_id, $ROUND);
 		$NOW = php_draft_library::getNowRefreshTime();
 		
 		if(empty($ROUND_PICKS)) {
@@ -187,8 +208,8 @@ switch(ACTION) {
 	
 	default:
 		// <editor-fold defaultstate="collapsed" desc="index logic">
-		$LAST_TEN_PICKS = $DRAFT->getLastTenPicks();
-		$CURRENT_PICK = $DRAFT->getCurrentPick();
+		$LAST_TEN_PICKS = $PLAYER_SERVICE->getLastTenPicks($DRAFT->draft_id);
+		$CURRENT_PICK = $PLAYER_SERVICE->getCurrentPick($DRAFT);
 		require("views/public_draft/index.php");
 		// </editor-fold>
 		break;

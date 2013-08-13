@@ -8,17 +8,19 @@ DEFINE("DRAFT_ID", isset($_REQUEST['did']) ? (int)$_REQUEST['did'] : 0);
 DEFINE("TRADE_ID", isset($_REQUEST['tid']) ? (int)$_REQUEST['tid'] : 0);
 DEFINE("MANAGER_ID", isset($_REQUEST['mid']) ? (int)$_REQUEST['mid'] : 0);
 
-$DRAFT = new draft_object(DRAFT_ID);
+$DRAFT_SERVICE = new draft_service();
+$MANAGER_SERVICE = new manager_service();
+$PLAYER_SERVICE = new player_service();
 
-// <editor-fold defaultstate="collapsed" desc="Error checking on basic input">
-if($DRAFT->draft_id == 0) {
+try {
+	$DRAFT = $DRAFT_SERVICE->loadDraft(DRAFT_ID);
+}catch(Exception $e) {
 	define("PAGE_HEADER", "Draft Not Found");
 	define("P_CLASS", "error");
-	define("PAGE_CONTENT", "We're sorry, but the draft could not be loaded. Please try again.");
+	define("PAGE_CONTENT", "We're sorry, but the draft could not be loaded: " . $e->getMessage());
 	require_once("views/shared/generic_result_view.php");
 	exit(1);
 }
-// </editor-fold>
 
 // <editor-fold defaultstate="collapsed" desc="Ensure Draft is Draftable">
 if($DRAFT->isUndrafted()) {
@@ -46,7 +48,7 @@ switch(ACTION) {
 			exit(1);
 		}
 		
-		$players = player_object::getAllPlayersByManager(MANAGER_ID, true);
+		$players = $PLAYER_SERVICE->getAllPlayersByManager(MANAGER_ID, true);
 		
 		if(isset($players) && count($players) > 0) {
 			header('Cache-Control: no-cache, must-revalidate');
@@ -98,7 +100,7 @@ switch(ACTION) {
 	
 	default:
 		// <editor-fold defaultstate="collapsed" desc="Index Logic">
-		$MANAGERS = manager_object::getManagersByDraft(DRAFT_ID);
+		$MANAGERS = $MANAGER_SERVICE->getManagersByDraft(DRAFT_ID);
 		require("views/trades/index.php");
 		exit(0);
 		// </editor-fold>
